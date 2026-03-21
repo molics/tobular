@@ -3,29 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TOBULAR - Mobile Ready</title>
-	<link rel="icon" href="pollo.png" type="image/png">
+    <title>TOBULAR - Mobile & Sound Fix</title>
     <style>
         body { margin: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; color: white; font-family: 'Courier New', Courier, monospace; touch-action: manipulation; }
         #menu { text-align: center; background: #111; padding: 50px; border: 5px solid #ffff00; cursor: pointer; z-index: 100; }
         #titulo { font-size: clamp(40px, 10vw, 100px); font-weight: bold; color: #ffff00; margin: 0; }
         #game-container { display: none; flex-direction: column; align-items: center; position: relative; width: 100%; height: 100%; }
         #stats { font-size: 20px; margin-top: 10px; color: #ffff00; display: flex; gap: 20px; z-index: 5; }
-        canvas { background: rgb(0, 0, 50); border: 4px solid #444; max-width: 100%; max-height: 70vh; }
+        canvas { background: rgb(0, 0, 50); border: 4px solid #444; max-width: 100%; max-height: 65vh; }
         
         /* CONTROLES TÁCTILES */
         #controles { 
             display: flex; width: 100%; max-width: 800px; justify-content: space-between; 
-            padding: 10px; position: absolute; bottom: 20px; pointer-events: none;
+            padding: 10px; position: absolute; bottom: 10px; pointer-events: none;
         }
-        .btn-grupo { display: flex; gap: 10px; pointer-events: auto; }
+        .btn-grupo { display: flex; gap: 15px; pointer-events: auto; }
         .boton { 
-            width: 70px; height: 70px; background: rgba(255, 255, 255, 0.2); 
-            border: 2px solid white; border-radius: 10px; display: flex; 
-            align-items: center; justify-content: center; font-weight: bold; 
-            user-select: none; -webkit-user-select: none;
+            width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15); 
+            border: 3px solid #ffff00; border-radius: 50%; display: flex; 
+            align-items: center; justify-content: center; font-size: 30px; font-weight: bold; 
+            user-select: none; -webkit-user-select: none; color: #ffff00;
         }
-        .boton:active { background: rgba(255, 255, 0, 0.5); }
+        .boton:active { background: rgba(255, 255, 0, 0.4); transform: scale(0.9); }
 
         #pausa-overlay {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -38,14 +37,14 @@
 
     <div id="menu" onclick="iniciarTodo()">
         <div id="titulo">TOBULAR</div>
-        <button style="background:#ffff00; padding:15px; margin-top:20px; font-weight:bold; cursor:pointer;">INICIAR COMBATE</button>
+        <button style="background:#ffff00; padding:15px; margin-top:20px; font-weight:bold; cursor:pointer; border:none;">INICIAR COMBATE</button>
     </div>
 
     <div id="game-container">
         <div id="stats">
             <span>HP: <span id="vida">444</span></span>
             <span>PTS: <span id="puntos">0</span></span>
-            <span id="boss-ui" style="color:#ff00ff; display:none;">CORE: <span id="boss-hp">44</span></span>
+            <span id="boss-ui" style="color:#ff00ff; display:none; font-weight:bold;">CORE: <span id="boss-hp">44</span></span>
         </div>
         
         <canvas id="juego" width="800" height="600"></canvas>
@@ -56,13 +55,13 @@
                 <div class="boton" id="btn-der">→</div>
             </div>
             <div class="btn-grupo">
-                <div class="boton" id="btn-pausa">P</div>
+                <div class="boton" id="btn-pausa" style="font-size:20px;">PAUSA</div>
                 <div class="boton" id="btn-salto">↑</div>
             </div>
         </div>
 
         <div id="pausa-overlay" onclick="togglePausa()">
-            <h2>PAUSA</h2>
+            <h2 style="color:#ffff00; font-size:50px;">PAUSA</h2>
             <p>Toca para continuar</p>
         </div>
     </div>
@@ -90,7 +89,7 @@ let plataformas = [
 ];
 let enemigos = [], huevo = { x: 0, y: 0, activo: false }, flash = 0, spawnTimer = 0, teclas = {};
 
-// --- SISTEMA DE CONTROLES (TECLADO + TACTIL) ---
+// --- CONTROLES ---
 window.onkeydown = (e) => {
     let k = e.key.toLowerCase();
     teclas[k] = true;
@@ -100,8 +99,14 @@ window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
 function setupBoton(id, tecla) {
     const btn = document.getElementById(id);
-    btn.ontouchstart = (e) => { e.preventDefault(); teclas[tecla] = true; if(tecla === 'p') togglePausa(); };
-    btn.ontouchend = (e) => { e.preventDefault(); teclas[tecla] = false; };
+    btn.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        if(tecla === 'p') togglePausa(); else teclas[tecla] = true; 
+    }, {passive: false});
+    btn.addEventListener('touchend', (e) => { 
+        e.preventDefault(); 
+        teclas[tecla] = false; 
+    }, {passive: false});
 }
 setupBoton("btn-izq", "a");
 setupBoton("btn-der", "d");
@@ -112,8 +117,12 @@ function togglePausa() {
     if (document.getElementById("game-container").style.display === "none") return;
     juegoPausado = !juegoPausado;
     document.getElementById("pausa-overlay").style.display = juegoPausado ? "flex" : "none";
-    if (!juegoPausado) { if(boss.activo) musicaCore.play(); else musicaTom.play(); bucleJuego(); }
-    else { musicaTom.pause(); musicaCore.pause(); }
+    if (!juegoPausado) { 
+        if(boss.activo) musicaCore.play(); else musicaTom.play(); 
+        bucleJuego(); 
+    } else { 
+        musicaTom.pause(); musicaCore.pause(); 
+    }
 }
 
 function volverAlMenu() {
@@ -123,7 +132,7 @@ function volverAlMenu() {
 }
 
 function iniciarTodo() {
-    puntosVida = 444; score = 0; enemigos = []; boss.activo = false; juegoPausado = false;
+    puntosVida = 444; score = 0; enemigos = []; boss.activo = false; juegoPausado = false; flash = 0;
     document.getElementById("vida").innerText = puntosVida;
     document.getElementById("puntos").innerText = score;
     document.getElementById("boss-ui").style.display = "none";
@@ -156,6 +165,7 @@ function bucleJuego() {
     ctx.fillRect(0, 0, 800, 600);
     ctx.fillStyle = "#8B4513"; plataformas.forEach(pl => ctx.fillRect(pl.x, pl.y, pl.w, pl.h));
 
+    // Movimiento Jugador (Pollito Blanco)
     if (teclas["a"] || teclas["arrowleft"]) { p.vx -= 0.8; p.mirandoDerecha = false; }
     if (teclas["d"] || teclas["arrowright"]) { p.vx += 0.8; p.mirandoDerecha = true; }
     if ((teclas["w"] || teclas["arrowup"] || teclas[" "]) && p.enSuelo) { p.vy = -12; p.enSuelo = false; }
@@ -170,6 +180,7 @@ function bucleJuego() {
     else { ctx.drawImage(imgPollo, p.x, p.y, p.w, p.h); }
     ctx.restore();
 
+    // Activación Boss
     if (score >= 100 && !boss.activo) { 
         boss.activo = true; boss.hp = 44; 
         document.getElementById("boss-ui").style.display = "inline"; 
@@ -184,6 +195,7 @@ function bucleJuego() {
         }
     }
 
+    // Enemigos (Pollos Rojos)
     spawnTimer++;
     if (spawnTimer > 30) {
         enemigos.push({ x: Math.random()*800, y: 0, vx: (Math.random()-0.5)*8, vy: 2 });
@@ -191,7 +203,7 @@ function bucleJuego() {
         if (!huevo.activo) { huevo.x = Math.random()*700; huevo.y = Math.random()*400; huevo.activo = true; }
     }
 
-    enemigos.forEach((en, i) => {
+    enemigos.forEach((en) => {
         en.x += en.vx; en.y += en.vy;
         ctx.drawImage(imgRojo, en.x, en.y, 40, 40);
         if (Math.abs(p.x - en.x) < 30 && Math.abs(p.y - en.y) < 30 && invulnerable <= 0) {
@@ -201,22 +213,31 @@ function bucleJuego() {
 
     if (puntosVida <= 0) { alert("¡GAME OVER!"); volverAlMenu(); return; }
 
+    // El Huevo (Cosa que los mata)
     if (huevo.activo) {
         ctx.drawImage(imgHuevo, huevo.x, huevo.y, 35, 35);
         if (Math.abs(p.x - huevo.x) < 40 && Math.abs(p.y - huevo.y) < 40) {
-            huevo.activo = false; flash = 1; score++; 
+            huevo.activo = false; 
+            flash = 1; 
+            score++; 
             document.getElementById("puntos").innerText = score;
+            
+            // EL SONIDO SUENA SIEMPRE AL TOCAR EL HUEVO
+            sonidoExp.currentTime = 0; 
+            sonidoExp.play();
+
             if (boss.activo) { 
                 boss.hp--; document.getElementById("boss-hp").innerText = boss.hp; 
                 if (boss.hp <= 0) { alert("¡VICTORIA!"); volverAlMenu(); return; }
             }
-            sonidoExp.play();
         }
     }
 
     if (flash > 0) { 
-        ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; ctx.fillRect(0, 0, 800, 600); 
-        flash -= 0.05; if (enemigos.length > 0) enemigos.pop();
+        ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; 
+        ctx.fillRect(0, 0, 800, 600); 
+        flash -= 0.05; 
+        if (enemigos.length > 0) enemigos.pop(); // Elimina enemigos rojos
     }
 
     requestAnimationFrame(bucleJuego);
