@@ -6,27 +6,31 @@
     <title>TOBULAR</title>
     <style>
         body { margin: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; color: white; font-family: 'Courier New', Courier, monospace; touch-action: manipulation; }
-        #menu { text-align: center; background: #111; padding: 50px; border: 5px solid #ffff00; cursor: pointer; z-index: 100; }
+        #menu { text-align: center; background: #111; padding: 40px; border: 5px solid #ffff00; cursor: pointer; z-index: 100; display: flex; flex-direction: column; align-items: center; }
         #titulo { font-size: clamp(60px, 15vw, 120px); font-weight: bold; color: #ffff00; margin: 0; }
+        
+        /* Estilo para el enlace de descarga */
+        .download-link { color: #ffff00; text-decoration: underline; margin-top: 10px; font-size: 18px; cursor: pointer; }
+        .download-link:hover { color: #fff; }
+
         #game-container { display: none; flex-direction: column; align-items: center; position: relative; width: 100%; height: 100%; }
         #stats { font-size: 20px; margin-top: 10px; color: #ffff00; display: flex; gap: 20px; z-index: 5; }
         canvas { background: rgb(0, 0, 50); border: 4px solid #444; max-width: 100%; max-height: 65vh; }
-        
         #controles { display: flex; width: 100%; max-width: 800px; justify-content: space-between; padding: 10px; position: absolute; bottom: 10px; pointer-events: none; }
         .btn-grupo { display: flex; gap: 15px; pointer-events: auto; }
         .boton { width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15); border: 3px solid #ffff00; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; user-select: none; color: #ffff00; }
         .boton:active { background: rgba(255, 255, 0, 0.4); transform: scale(0.9); }
-
         #pausa-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); flex-direction: column; justify-content: center; align-items: center; z-index: 20; }
     </style>
 </head>
 <body>
 
-    <div id="menu" onclick="iniciarTodo()">
+    <div id="menu">
         <div id="titulo">TOBULAR</div>
-        <button style="background:#ffff00; padding:15px; margin-top:20px; font-weight:bold; cursor:pointer; border:none;">INICIAR COMBATE</button>
-        <hr>
-        <a href="tobular.apk">decarga la app! (android)</a>
+        <!-- Enlace de descarga añadido -->
+        <a href="tobular.apk" class="download-link">descarga la app! (android)</a>
+        
+        <button onclick="iniciarTodo()" style="background:#ffff00; padding:15px; margin-top:30px; font-weight:bold; cursor:pointer; border:none; width: 200px;">INICIAR COMBATE</button>
     </div>
 
     <div id="game-container">
@@ -38,12 +42,13 @@
         <canvas id="juego" width="800" height="600"></canvas>
         <div id="controles">
             <div class="btn-grupo"><div class="boton" id="btn-izq">←</div><div class="boton" id="btn-der">→</div></div>
-            <div class="btn-grupo"><div class="boton" id="btn-pausa" style="font-size:20px;">PAUSA</div><div class="boton" id="btn-salto">↑</div></div>
+            <div class="btn-grupo"><div class="boton" id="btn-pausa" style="font-size:18px;">PAUSA</div><div class="boton" id="btn-salto">↑</div></div>
         </div>
         <div id="pausa-overlay" onclick="togglePausa()"><h2 style="color:#ffff00; font-size:50px;">PAUSA</h2><p>Toca para continuar</p></div>
     </div>
 
 <script>
+// El resto del código de lógica de juego se mantiene igual...
 const canvas = document.getElementById("juego");
 const ctx = canvas.getContext("2d");
 
@@ -54,24 +59,29 @@ const imgHuevo = new Image(); imgHuevo.src = "uevo.png";
 const musicaTom = new Audio("tom.mp3");
 const musicaCore = new Audio("core.mp3");
 const sonidoExp = new Audio("exp.mp3");
-const sonidoDano = new Audio("uu.mp3"); // Nuevo sonido de daño
+const sonidoDano = new Audio("uu.mp3");
 musicaTom.loop = true; musicaCore.loop = true;
 
 let puntosVida = 444, score = 0, invulnerable = 0, juegoPausado = false;
 let p = { x: 400, y: 100, w: 45, h: 45, vx: 0, vy: 0, enSuelo: false, mirandoDerecha: true };
 let boss = { x: -100, y: 100, w: 70, h: 70, vx: 0, vy: 0, hp: 44, activo: false };
-let plataformas = [
-    {x: 0, y: 560, w: 800, h: 40}, {x: 0, y: 400, w: 260, h: 20},
-    {x: 540, y: 400, w: 260, h: 20}, {x: 250, y: 250, w: 300, h: 20},
-    {x: 0, y: 120, w: 200, h: 20}, {x: 600, y: 120, w: 200, h: 20}
-];
+let plataformas = [{x:0,y:560,w:800,h:40},{x:0,y:400,w:260,h:20},{x:540,y:400,w:260,h:20},{x:250,y:250,w:300,h:20},{x:0,y:120,w:200,h:20},{x:600,y:120,w:200,h:20}];
 let enemigos = [], huevo = { x: 0, y: 0, activo: false }, flash = 0, spawnTimer = 0, teclas = {};
+let particulas = [];
 
-window.onkeydown = (e) => {
-    let k = e.key.toLowerCase();
-    teclas[k] = true;
-    if (k === 'p') togglePausa();
-};
+function crearParticulas(x, y) {
+    for(let i=0; i<15; i++) {
+        particulas.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            vida: 30,
+            color: "orange"
+        });
+    }
+}
+
+window.onkeydown = (e) => { let k = e.key.toLowerCase(); teclas[k] = true; if (k === 'p') togglePausa(); };
 window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
 function setupBoton(id, tecla) {
@@ -96,14 +106,10 @@ function volverAlMenu() {
 }
 
 function iniciarTodo() {
-    puntosVida = 444; score = 0; enemigos = []; boss.activo = false; juegoPausado = false; flash = 0;
-    document.getElementById("vida").innerText = puntosVida;
-    document.getElementById("puntos").innerText = score;
-    document.getElementById("boss-ui").style.display = "none";
-    document.getElementById("menu").style.display = "none";
-    document.getElementById("game-container").style.display = "flex";
-    musicaTom.play();
-    bucleJuego();
+    puntosVida = 444; score = 0; enemigos = []; particulas = []; boss.activo = false; juegoPausado = false; flash = 0;
+    document.getElementById("vida").innerText = puntosVida; document.getElementById("puntos").innerText = score;
+    document.getElementById("boss-ui").style.display = "none"; document.getElementById("menu").style.display = "none";
+    document.getElementById("game-container").style.display = "flex"; musicaTom.play(); bucleJuego();
 }
 
 function colisionPlataformas(obj) {
@@ -146,9 +152,9 @@ function bucleJuego() {
         boss.x += (p.x - boss.x) * 0.02; boss.y += (p.y - boss.y) * 0.02;
         ctx.drawImage(imgRojo, boss.x, boss.y, boss.w, boss.h);
         if (Math.abs(p.x - boss.x) < 40 && Math.abs(p.y - boss.y) < 40 && invulnerable <= 0) {
-            puntosVida -= 15; invulnerable = 60; 
-            document.getElementById("vida").innerText = puntosVida;
-            sonidoDano.currentTime = 0; sonidoDano.play(); // Sonido uu.mp3
+            puntosVida -= 15; invulnerable = 60; document.getElementById("vida").innerText = puntosVida;
+            sonidoDano.currentTime = 0; sonidoDano.play();
+            crearParticulas(p.x + p.w/2, p.y + p.h/2);
         }
     }
 
@@ -163,24 +169,36 @@ function bucleJuego() {
         en.x += en.vx; en.y += en.vy;
         ctx.drawImage(imgRojo, en.x, en.y, 40, 40);
         if (Math.abs(p.x - en.x) < 30 && Math.abs(p.y - en.y) < 30 && invulnerable <= 0) {
-            puntosVida--; invulnerable = 60; 
-            document.getElementById("vida").innerText = puntosVida;
-            sonidoDano.currentTime = 0; sonidoDano.play(); // Sonido uu.mp3
+            puntosVida--; invulnerable = 60; document.getElementById("vida").innerText = puntosVida;
+            sonidoDano.currentTime = 0; sonidoDano.play();
+            crearParticulas(p.x + p.w/2, p.y + p.h/2);
         }
     });
-
-    if (puntosVida <= 0) { alert("¡GAME OVER!"); volverAlMenu(); return; }
 
     if (huevo.activo) {
         ctx.drawImage(imgHuevo, huevo.x, huevo.y, 35, 35);
         if (Math.abs(p.x - huevo.x) < 40 && Math.abs(p.y - huevo.y) < 40) {
             huevo.activo = false; flash = 1; score++; document.getElementById("puntos").innerText = score;
             sonidoExp.currentTime = 0; sonidoExp.play();
+            enemigos.forEach(e => crearParticulas(e.x + 20, e.y + 20));
             if (boss.activo) { 
                 boss.hp--; document.getElementById("boss-hp").innerText = boss.hp; 
+                crearParticulas(boss.x + boss.w/2, boss.y + boss.h/2);
                 if (boss.hp <= 0) { alert("¡VICTORIA!"); volverAlMenu(); return; }
             }
         }
+    }
+
+    particulas.forEach((part, i) => {
+        part.x += part.vx; part.y += part.vy; part.vida--;
+        ctx.fillStyle = part.color;
+        ctx.fillRect(part.x, part.y, 5, 5);
+        if(part.vida <= 0) particulas.splice(i, 1);
+    });
+
+    if (puntosVida <= 0) { 
+        crearParticulas(p.x + p.w/2, p.y + p.h/2);
+        alert("¡GAME OVER!"); volverAlMenu(); return; 
     }
 
     if (flash > 0) { ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; ctx.fillRect(0, 0, 800, 600); flash -= 0.05; if (enemigos.length > 0) enemigos.pop(); }
