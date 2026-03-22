@@ -7,30 +7,17 @@
     <style>
         body { margin: 0; background: #000; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; color: white; font-family: 'Courier New', Courier, monospace; touch-action: manipulation; }
         #menu { text-align: center; background: #111; padding: 50px; border: 5px solid #ffff00; cursor: pointer; z-index: 100; }
-        #titulo { font-size: clamp(40px, 10vw, 100px); font-weight: bold; color: #ffff00; margin: 0; }
+        #titulo { font-size: clamp(60px, 15vw, 120px); font-weight: bold; color: #ffff00; margin: 0; }
         #game-container { display: none; flex-direction: column; align-items: center; position: relative; width: 100%; height: 100%; }
         #stats { font-size: 20px; margin-top: 10px; color: #ffff00; display: flex; gap: 20px; z-index: 5; }
         canvas { background: rgb(0, 0, 50); border: 4px solid #444; max-width: 100%; max-height: 65vh; }
         
-        /* CONTROLES TÁCTILES */
-        #controles { 
-            display: flex; width: 100%; max-width: 800px; justify-content: space-between; 
-            padding: 10px; position: absolute; bottom: 10px; pointer-events: none;
-        }
+        #controles { display: flex; width: 100%; max-width: 800px; justify-content: space-between; padding: 10px; position: absolute; bottom: 10px; pointer-events: none; }
         .btn-grupo { display: flex; gap: 15px; pointer-events: auto; }
-        .boton { 
-            width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15); 
-            border: 3px solid #ffff00; border-radius: 50%; display: flex; 
-            align-items: center; justify-content: center; font-size: 30px; font-weight: bold; 
-            user-select: none; -webkit-user-select: none; color: #ffff00;
-        }
+        .boton { width: 80px; height: 80px; background: rgba(255, 255, 255, 0.15); border: 3px solid #ffff00; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; user-select: none; color: #ffff00; }
         .boton:active { background: rgba(255, 255, 0, 0.4); transform: scale(0.9); }
 
-        #pausa-overlay {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8); flex-direction: column; justify-content: center;
-            align-items: center; z-index: 20;
-        }
+        #pausa-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); flex-direction: column; justify-content: center; align-items: center; z-index: 20; }
     </style>
 </head>
 <body>
@@ -46,24 +33,12 @@
             <span>PTS: <span id="puntos">0</span></span>
             <span id="boss-ui" style="color:#ff00ff; display:none; font-weight:bold;">CORE: <span id="boss-hp">44</span></span>
         </div>
-        
         <canvas id="juego" width="800" height="600"></canvas>
-
         <div id="controles">
-            <div class="btn-grupo">
-                <div class="boton" id="btn-izq">←</div>
-                <div class="boton" id="btn-der">→</div>
-            </div>
-            <div class="btn-grupo">
-                <div class="boton" id="btn-pausa" style="font-size:20px;">PAUSA</div>
-                <div class="boton" id="btn-salto">↑</div>
-            </div>
+            <div class="btn-grupo"><div class="boton" id="btn-izq">←</div><div class="boton" id="btn-der">→</div></div>
+            <div class="btn-grupo"><div class="boton" id="btn-pausa" style="font-size:20px;">PAUSA</div><div class="boton" id="btn-salto">↑</div></div>
         </div>
-
-        <div id="pausa-overlay" onclick="togglePausa()">
-            <h2 style="color:#ffff00; font-size:50px;">PAUSA</h2>
-            <p>Toca para continuar</p>
-        </div>
+        <div id="pausa-overlay" onclick="togglePausa()"><h2 style="color:#ffff00; font-size:50px;">PAUSA</h2><p>Toca para continuar</p></div>
     </div>
 
 <script>
@@ -77,6 +52,7 @@ const imgHuevo = new Image(); imgHuevo.src = "uevo.png";
 const musicaTom = new Audio("tom.mp3");
 const musicaCore = new Audio("core.mp3");
 const sonidoExp = new Audio("exp.mp3");
+const sonidoDano = new Audio("uu.mp3"); // Nuevo sonido de daño
 musicaTom.loop = true; musicaCore.loop = true;
 
 let puntosVida = 444, score = 0, invulnerable = 0, juegoPausado = false;
@@ -89,7 +65,6 @@ let plataformas = [
 ];
 let enemigos = [], huevo = { x: 0, y: 0, activo: false }, flash = 0, spawnTimer = 0, teclas = {};
 
-// --- CONTROLES ---
 window.onkeydown = (e) => {
     let k = e.key.toLowerCase();
     teclas[k] = true;
@@ -99,30 +74,17 @@ window.onkeyup = (e) => teclas[e.key.toLowerCase()] = false;
 
 function setupBoton(id, tecla) {
     const btn = document.getElementById(id);
-    btn.addEventListener('touchstart', (e) => { 
-        e.preventDefault(); 
-        if(tecla === 'p') togglePausa(); else teclas[tecla] = true; 
-    }, {passive: false});
-    btn.addEventListener('touchend', (e) => { 
-        e.preventDefault(); 
-        teclas[tecla] = false; 
-    }, {passive: false});
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); if(tecla === 'p') togglePausa(); else teclas[tecla] = true; }, {passive: false});
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); teclas[tecla] = false; }, {passive: false});
 }
-setupBoton("btn-izq", "a");
-setupBoton("btn-der", "d");
-setupBoton("btn-salto", "w");
-setupBoton("btn-pausa", "p");
+setupBoton("btn-izq", "a"); setupBoton("btn-der", "d"); setupBoton("btn-salto", "w"); setupBoton("btn-pausa", "p");
 
 function togglePausa() {
     if (document.getElementById("game-container").style.display === "none") return;
     juegoPausado = !juegoPausado;
     document.getElementById("pausa-overlay").style.display = juegoPausado ? "flex" : "none";
-    if (!juegoPausado) { 
-        if(boss.activo) musicaCore.play(); else musicaTom.play(); 
-        bucleJuego(); 
-    } else { 
-        musicaTom.pause(); musicaCore.pause(); 
-    }
+    if (!juegoPausado) { if(boss.activo) musicaCore.play(); else musicaTom.play(); bucleJuego(); }
+    else { musicaTom.pause(); musicaCore.pause(); }
 }
 
 function volverAlMenu() {
@@ -151,21 +113,17 @@ function colisionPlataformas(obj) {
             if (oy < ox) {
                 if (obj.vy > 0 && obj.y < pl.y) { obj.y = pl.y - obj.h; obj.vy = 0; obj.enSuelo = true; }
                 else { obj.y = pl.y + pl.h; obj.vy *= -0.5; }
-            } else {
-                obj.x = (obj.x < pl.x) ? pl.x - obj.w : pl.x + pl.w; obj.vx *= -0.5;
-            }
+            } else { obj.x = (obj.x < pl.x) ? pl.x - obj.w : pl.x + pl.w; obj.vx *= -0.5; }
         }
     });
 }
 
 function bucleJuego() {
     if (juegoPausado || document.getElementById("game-container").style.display === "none") return;
-
     ctx.fillStyle = boss.activo ? "rgb(40, 0, 40)" : "rgb(0, 0, 50)"; 
     ctx.fillRect(0, 0, 800, 600);
     ctx.fillStyle = "#8B4513"; plataformas.forEach(pl => ctx.fillRect(pl.x, pl.y, pl.w, pl.h));
 
-    // Movimiento Jugador (Pollito Blanco)
     if (teclas["a"] || teclas["arrowleft"]) { p.vx -= 0.8; p.mirandoDerecha = false; }
     if (teclas["d"] || teclas["arrowright"]) { p.vx += 0.8; p.mirandoDerecha = true; }
     if ((teclas["w"] || teclas["arrowup"] || teclas[" "]) && p.enSuelo) { p.vy = -12; p.enSuelo = false; }
@@ -180,22 +138,18 @@ function bucleJuego() {
     else { ctx.drawImage(imgPollo, p.x, p.y, p.w, p.h); }
     ctx.restore();
 
-    // Activación Boss
-    if (score >= 100 && !boss.activo) { 
-        boss.activo = true; boss.hp = 44; 
-        document.getElementById("boss-ui").style.display = "inline"; 
-        musicaTom.pause(); musicaCore.play(); 
-    }
+    if (score >= 100 && !boss.activo) { boss.activo = true; boss.hp = 44; document.getElementById("boss-ui").style.display = "inline"; musicaTom.pause(); musicaCore.play(); }
     
     if (boss.activo) {
         boss.x += (p.x - boss.x) * 0.02; boss.y += (p.y - boss.y) * 0.02;
         ctx.drawImage(imgRojo, boss.x, boss.y, boss.w, boss.h);
         if (Math.abs(p.x - boss.x) < 40 && Math.abs(p.y - boss.y) < 40 && invulnerable <= 0) {
-            puntosVida -= 15; invulnerable = 60; document.getElementById("vida").innerText = puntosVida;
+            puntosVida -= 15; invulnerable = 60; 
+            document.getElementById("vida").innerText = puntosVida;
+            sonidoDano.currentTime = 0; sonidoDano.play(); // Sonido uu.mp3
         }
     }
 
-    // Enemigos (Pollos Rojos)
     spawnTimer++;
     if (spawnTimer > 30) {
         enemigos.push({ x: Math.random()*800, y: 0, vx: (Math.random()-0.5)*8, vy: 2 });
@@ -207,25 +161,19 @@ function bucleJuego() {
         en.x += en.vx; en.y += en.vy;
         ctx.drawImage(imgRojo, en.x, en.y, 40, 40);
         if (Math.abs(p.x - en.x) < 30 && Math.abs(p.y - en.y) < 30 && invulnerable <= 0) {
-            puntosVida--; invulnerable = 60; document.getElementById("vida").innerText = puntosVida;
+            puntosVida--; invulnerable = 60; 
+            document.getElementById("vida").innerText = puntosVida;
+            sonidoDano.currentTime = 0; sonidoDano.play(); // Sonido uu.mp3
         }
     });
 
     if (puntosVida <= 0) { alert("¡GAME OVER!"); volverAlMenu(); return; }
 
-    // El Huevo (Cosa que los mata)
     if (huevo.activo) {
         ctx.drawImage(imgHuevo, huevo.x, huevo.y, 35, 35);
         if (Math.abs(p.x - huevo.x) < 40 && Math.abs(p.y - huevo.y) < 40) {
-            huevo.activo = false; 
-            flash = 1; 
-            score++; 
-            document.getElementById("puntos").innerText = score;
-            
-            // EL SONIDO SUENA SIEMPRE AL TOCAR EL HUEVO
-            sonidoExp.currentTime = 0; 
-            sonidoExp.play();
-
+            huevo.activo = false; flash = 1; score++; document.getElementById("puntos").innerText = score;
+            sonidoExp.currentTime = 0; sonidoExp.play();
             if (boss.activo) { 
                 boss.hp--; document.getElementById("boss-hp").innerText = boss.hp; 
                 if (boss.hp <= 0) { alert("¡VICTORIA!"); volverAlMenu(); return; }
@@ -233,13 +181,7 @@ function bucleJuego() {
         }
     }
 
-    if (flash > 0) { 
-        ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; 
-        ctx.fillRect(0, 0, 800, 600); 
-        flash -= 0.05; 
-        if (enemigos.length > 0) enemigos.pop(); // Elimina enemigos rojos
-    }
-
+    if (flash > 0) { ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; ctx.fillRect(0, 0, 800, 600); flash -= 0.05; if (enemigos.length > 0) enemigos.pop(); }
     requestAnimationFrame(bucleJuego);
 }
 </script>
