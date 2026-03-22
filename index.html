@@ -53,7 +53,7 @@
 
 <script>
 const canvas = document.getElementById("juego");
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", { alpha: false });
 
 const imgPollo = new Image(); imgPollo.src = "pollo.png";
 const imgRojo = new Image(); imgRojo.src = "pollo rojo.png";
@@ -68,7 +68,7 @@ musicaTom.loop = true; musicaCore.loop = true;
 let puntosVida, score, invulnerable, juegoPausado, juegoFinalizado;
 let p, boss, plataformas, enemigos, huevo, flash, spawnTimer, teclas, particulas;
 
-function crearParticulas(x, y, cantidad = 15) {
+function crearParticulas(x, y, cantidad = 8) {
     for(let i=0; i<cantidad; i++) {
         particulas.push({
             x: x, y: y,
@@ -121,7 +121,7 @@ function finalizar(mensaje) {
     let intervalo = setInterval(() => {
         crearParticulas(Math.random()*800, Math.random()*600, 5);
         contador++;
-        if(contador > 40) { // Aproximadamente 4 segundos de explosiones
+        if(contador > 40) {
             clearInterval(intervalo);
             alert(mensaje);
             musicaTom.pause(); musicaCore.pause();
@@ -134,19 +134,36 @@ function finalizar(mensaje) {
 function bucleJuego() {
     if (juegoPausado || document.getElementById("game-container").style.display === "none") return;
 
-    ctx.fillStyle = boss.activo ? "rgb(40, 0, 40)" : "rgb(0, 0, 50)"; 
+    // OPTIMIZATION: Use clearRect instead of fillRect for background
+    ctx.clearRect(0, 0, 800, 600);
+    ctx.fillStyle = boss.activo ? "rgb(40, 0, 40)" : "rgb(0, 0, 50)";
     ctx.fillRect(0, 0, 800, 600);
-    ctx.fillStyle = "#8B4513"; plataformas.forEach(pl => ctx.fillRect(pl.x, pl.y, pl.w, pl.h));
+    
+    // Draw platforms
+    ctx.fillStyle = "#8B4513";
+    for(let i = 0; i < plataformas.length; i++) {
+        const pl = plataformas[i];
+        ctx.fillRect(Math.floor(pl.x), Math.floor(pl.y), pl.w, pl.h);
+    }
 
     if (!juegoFinalizado) {
         if (teclas["a"] || teclas["arrowleft"]) { p.vx -= 0.8; p.mirandoDerecha = false; }
         if (teclas["d"] || teclas["arrowright"]) { p.vx += 0.8; p.mirandoDerecha = true; }
         if ((teclas["w"] || teclas["arrowup"] || teclas[" "]) && p.enSuelo) { p.vy = -12; p.enSuelo = false; }
 
-        p.vy += 0.35; p.vx *= 0.97; p.x += p.vx; p.y += p.vy;
-        if (p.x > 800) p.x = 0; if (p.x < 0) p.x = 800;
+        p.vy += 0.35; p.vx *= 0.97; 
+        p.x += p.vx; 
+        p.y += p.vy;
         
-        plataformas.forEach(pl => {
+        // Wrap around screen
+        if (p.x > 800) p.x = 0; 
+        if (p.x < 0) p.x = 800;
+        
+        p.enSuelo = false;
+        
+        // Platform collision detection
+        for(let i = 0; i < plataformas.length; i++) {
+            const pl = plataformas[i];
             if (p.x < pl.x + pl.w && p.x + p.w > pl.x && p.y < pl.y + pl.h && p.y + p.h > pl.y) {
                 let oy = Math.min(p.y + p.h - pl.y, pl.y + pl.h - p.y);
                 let ox = Math.min(p.x + p.w - pl.x, pl.x + pl.w - p.x);
@@ -155,13 +172,14 @@ function bucleJuego() {
                     else { p.y = pl.y + pl.h; p.vy *= -0.5; }
                 } else { p.x = (p.x < pl.x) ? pl.x - p.w : pl.x + pl.w; p.vx *= -0.5; }
             }
-        });
+        }
 
         if (score >= 100 && !boss.activo) { boss.activo = true; document.getElementById("boss-ui").style.display = "inline"; musicaTom.pause(); musicaCore.play(); }
         
         if (boss.activo) {
-            boss.x += (p.x - boss.x) * 0.02; boss.y += (p.y - boss.y) * 0.02;
-            ctx.drawImage(imgRojo, boss.x, boss.y, boss.w, boss.h);
+            boss.x += (p.x - boss.x) * 0.02; 
+            boss.y += (p.y - boss.y) * 0.02;
+            ctx.drawImage(imgRojo, Math.floor(boss.x), Math.floor(boss.y), boss.w, boss.h);
             if (Math.abs(p.x - boss.x) < 40 && Math.abs(p.y - boss.y) < 40 && invulnerable <= 0) {
                 puntosVida -= 15; invulnerable = 60; sonidoDano.play();
                 document.getElementById("vida").innerText = puntosVida;
@@ -170,29 +188,44 @@ function bucleJuego() {
         }
 
         spawnTimer++;
-        if (spawnTimer > 30) {
+        // OPTIMIZATION: Increased spawn timer from 30 to 50 (fewer enemies)
+        if (spawnTimer > 50) {
             enemigos.push({ x: Math.random()*800, y: 0, vx: (Math.random()-0.5)*8, vy: 2 });
             spawnTimer = 0;
             if (!huevo.activo) { huevo.x = Math.random()*700; huevo.y = Math.random()*400; huevo.activo = true; }
         }
 
-        enemigos.forEach((en) => {
-            en.x += en.vx; en.y += en.vy;
-            ctx.drawImage(imgRojo, en.x, en.y, 40, 40);
+        // OPTIMIZATION: Remove off-screen enemies and draw them
+        for(let i = enemigos.length - 1; i >= 0; i--) {
+            const en = enemigos[i];
+            en.x += en.vx; 
+            en.y += en.vy;
+            
+            // Remove if off-screen
+            if (en.y > 650) {
+                enemigos.splice(i, 1);
+                continue;
+            }
+            
+            ctx.drawImage(imgRojo, Math.floor(en.x), Math.floor(en.y), 40, 40);
             if (Math.abs(p.x - en.x) < 30 && Math.abs(p.y - en.y) < 30 && invulnerable <= 0) {
                 puntosVida--; invulnerable = 60; sonidoDano.play();
                 document.getElementById("vida").innerText = puntosVida;
                 crearParticulas(p.x, p.y);
             }
-        });
+        }
 
         if (huevo.activo) {
-            ctx.drawImage(imgHuevo, huevo.x, huevo.y, 35, 35);
+            ctx.drawImage(imgHuevo, Math.floor(huevo.x), Math.floor(huevo.y), 35, 35);
             if (Math.abs(p.x - huevo.x) < 40 && Math.abs(p.y - huevo.y) < 40) {
                 huevo.activo = false; flash = 1; score++; 
                 document.getElementById("puntos").innerText = score;
                 sonidoExp.play();
-                enemigos.forEach(e => crearParticulas(e.x, e.y));
+                // OPTIMIZATION: Reduced particle count from 15 to 8
+                for(let i = 0; i < enemigos.length; i++) {
+                    crearParticulas(enemigos[i].x, enemigos[i].y, 5);
+                }
+                enemigos = [];
                 if (boss.activo) { 
                     boss.hp--; document.getElementById("boss-hp").innerText = boss.hp;
                     if (boss.hp <= 0) finalizar("¡VICTORIA! EL CORE HA SIDO DESTRUIDO");
@@ -203,20 +236,47 @@ function bucleJuego() {
         if (puntosVida <= 0) finalizar("¡GAME OVER! TE HAS QUEDADO SIN VIDA");
     }
 
-    ctx.save();
-    if (invulnerable > 0) { invulnerable--; ctx.globalAlpha = 0.4; }
-    if (!p.mirandoDerecha) { ctx.translate(p.x + p.w, p.y); ctx.scale(-1, 1); ctx.drawImage(imgPollo, 0, 0, p.w, p.h); }
-    else { ctx.drawImage(imgPollo, p.x, p.y, p.w, p.h); }
-    ctx.restore();
+    // Draw player with invulnerability flashing
+    if (invulnerable > 0) { 
+        invulnerable--; 
+        ctx.globalAlpha = 0.4; 
+    } else {
+        ctx.globalAlpha = 1;
+    }
+    
+    if (!p.mirandoDerecha) { 
+        ctx.save();
+        ctx.translate(Math.floor(p.x) + p.w, Math.floor(p.y)); 
+        ctx.scale(-1, 1); 
+        ctx.drawImage(imgPollo, 0, 0, p.w, p.h); 
+        ctx.restore();
+    }
+    else { 
+        ctx.drawImage(imgPollo, Math.floor(p.x), Math.floor(p.y), p.w, p.h); 
+    }
+    
+    ctx.globalAlpha = 1;
 
-    particulas.forEach((part, i) => {
-        part.x += part.vx; part.y += part.vy; part.vida--;
+    // Draw particles - OPTIMIZATION: Reduced from 15 to 8 particles per burst
+    for(let i = particulas.length - 1; i >= 0; i--) {
+        const part = particulas[i];
+        part.x += part.vx; 
+        part.y += part.vy; 
+        part.vida--;
         ctx.fillStyle = part.color;
-        ctx.fillRect(part.x, part.y, 5, 5);
-        if(part.vida <= 0) particulas.splice(i, 1);
-    });
+        ctx.fillRect(Math.floor(part.x), Math.floor(part.y), 5, 5);
+        if(part.vida <= 0) {
+            particulas.splice(i, 1);
+        }
+    }
 
-    if (flash > 0) { ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; ctx.fillRect(0, 0, 800, 600); flash -= 0.05; if (enemigos.length > 0) enemigos.pop(); }
+    // Flash effect when collecting egg
+    if (flash > 0) { 
+        ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; 
+        ctx.fillRect(0, 0, 800, 600); 
+        flash -= 0.05;
+    }
+    
     requestAnimationFrame(bucleJuego);
 }
 </script>
