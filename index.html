@@ -55,18 +55,52 @@
 const canvas = document.getElementById("juego");
 const ctx = canvas.getContext("2d", { alpha: false });
 
-const imgPollo = new Image(); imgPollo.src = "pollo.png";
-const imgRojo = new Image(); imgRojo.src = "pollo rojo.png";
-const imgHuevo = new Image(); imgHuevo.src = "uevo.png";
+const imgPollo = new Image(); 
+imgPollo.src = "pollo.png";
 
+const imgRojo = new Image(); 
+imgRojo.src = "pollo rojo.png";
+
+const imgHuevo = new Image(); 
+imgHuevo.src = "uevo.png";
+
+// Create multiple audio instances for sound effects to allow overlapping sounds
 const musicaTom = new Audio("tom.mp3");
 const musicaCore = new Audio("core.mp3");
-const sonidoExp = new Audio("exp.mp3");
-const sonidoDano = new Audio("uu.mp3");
-musicaTom.loop = true; musicaCore.loop = true;
+musicaTom.loop = true; 
+musicaCore.loop = true;
+
+// Sound effect pools - allow multiple sounds to play simultaneously
+const soundExpPool = [];
+const soundDanoPool = [];
+
+function crearSonido(pool, archivo) {
+    let audio = pool.find(a => a.paused);
+    if (!audio) {
+        audio = new Audio(archivo);
+        pool.push(audio);
+    }
+    audio.currentTime = 0;
+    audio.play().catch(e => console.log("Audio error:", e));
+    return audio;
+}
+
+function reproducirExp() {
+    crearSonido(soundExpPool, "exp.mp3");
+}
+
+function reproducirDano() {
+    crearSonido(soundDanoPool, "uu.mp3");
+}
 
 let puntosVida, score, invulnerable, juegoPausado, juegoFinalizado;
 let p, boss, plataformas, enemigos, huevo, flash, spawnTimer, teclas, particulas;
+let particulasEventoExit = []; // For event particles
+let tiempoMuerte = 0;
+let mostrarMensajeMuerte = false;
+let mensajeMuerte = "";
+let tiempoBossDerrota = 0;
+let mostrarMensajeVictoria = false;
 
 function crearParticulas(x, y, cantidad = 8) {
     for(let i=0; i<cantidad; i++) {
@@ -76,6 +110,18 @@ function crearParticulas(x, y, cantidad = 8) {
             vy: (Math.random() - 0.5) * 12,
             vida: 60,
             color: "orange"
+        });
+    }
+}
+
+function crearParticulasEvento(x, y, cantidad = 30, color = "orange") {
+    for(let i=0; i<cantidad; i++) {
+        particulasEventoExit.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            vida: 240, // 4 seconds at 60fps
+            color: color
         });
     }
 }
@@ -94,17 +140,37 @@ function togglePausa() {
     if (document.getElementById("game-container").style.display === "none" || juegoFinalizado) return;
     juegoPausado = !juegoPausado;
     document.getElementById("pausa-overlay").style.display = juegoPausado ? "flex" : "none";
-    if (!juegoPausado) { if(boss.activo) musicaCore.play(); else musicaTom.play(); bucleJuego(); }
-    else { musicaTom.pause(); musicaCore.pause(); }
+    if (!juegoPausado) { 
+        if(boss.activo) musicaCore.play(); 
+        else musicaTom.play(); 
+        bucleJuego(); 
+    }
+    else { 
+        musicaTom.pause(); 
+        musicaCore.pause(); 
+    }
 }
 
 function iniciarTodo() {
-    puntosVida = 444; score = 0; enemigos = []; particulas = []; boss = { x: -100, y: 100, w: 70, h: 70, vx: 0, vy: 0, hp: 44, activo: false };
+    puntosVida = 444; 
+    score = 0; 
+    enemigos = []; 
+    particulas = [];
+    particulasEventoExit = [];
+    boss = { x: -100, y: 100, w: 70, h: 70, vx: 0, vy: 0, hp: 44, activo: false };
     p = { x: 400, y: 100, w: 45, h: 45, vx: 0, vy: 0, enSuelo: false, mirandoDerecha: true };
     plataformas = [{x:0,y:560,w:800,h:40},{x:0,y:400,w:260,h:20},{x:540,y:400,w:260,h:20},{x:250,y:250,w:300,h:20},{x:0,y:120,w:200,h:20},{x:600,y:120,w:200,h:20}];
     huevo = { x: 0, y: 0, activo: false };
-    teclas = {}; invulnerable = 0; flash = 0; spawnTimer = 0;
-    juegoPausado = false; juegoFinalizado = false;
+    teclas = {}; 
+    invulnerable = 0; 
+    flash = 0; 
+    spawnTimer = 0;
+    juegoPausado = false; 
+    juegoFinalizado = false;
+    tiempoMuerte = 0;
+    mostrarMensajeMuerte = false;
+    tiempoBossDerrota = 0;
+    mostrarMensajeVictoria = false;
 
     document.getElementById("vida").innerText = puntosVida;
     document.getElementById("puntos").innerText = score;
@@ -112,23 +178,23 @@ function iniciarTodo() {
     document.getElementById("menu").style.display = "none";
     document.getElementById("game-container").style.display = "flex";
     musicaTom.play();
+    
+    // Particles when game starts - coming out of player
+    crearParticulasEvento(p.x + p.w/2, p.y + p.h/2, 50, "yellow");
+    
     bucleJuego();
 }
 
 function finalizar(mensaje) {
     juegoFinalizado = true;
-    let contador = 0;
-    let intervalo = setInterval(() => {
-        crearParticulas(Math.random()*800, Math.random()*600, 5);
-        contador++;
-        if(contador > 40) {
-            clearInterval(intervalo);
-            alert(mensaje);
-            musicaTom.pause(); musicaCore.pause();
-            document.getElementById("game-container").style.display = "none";
-            document.getElementById("menu").style.display = "flex";
-        }
-    }, 100);
+    mensajeMuerte = mensaje;
+    tiempoMuerte = 0;
+    mostrarMensajeMuerte = false;
+    
+    // Create particles that exit from player position for 4 seconds
+    crearParticulasEvento(p.x + p.w/2, p.y + p.h/2, 100, "red");
+    musicaTom.pause(); 
+    musicaCore.pause();
 }
 
 function bucleJuego() {
@@ -151,7 +217,8 @@ function bucleJuego() {
         if (teclas["d"] || teclas["arrowright"]) { p.vx += 0.8; p.mirandoDerecha = true; }
         if ((teclas["w"] || teclas["arrowup"] || teclas[" "]) && p.enSuelo) { p.vy = -12; p.enSuelo = false; }
 
-        p.vy += 0.35; p.vx *= 0.97; 
+        p.vy += 0.35; 
+        p.vx *= 0.97; 
         p.x += p.vx; 
         p.y += p.vy;
         
@@ -174,23 +241,38 @@ function bucleJuego() {
             }
         }
 
-        if (score >= 100 && !boss.activo) { boss.activo = true; document.getElementById("boss-ui").style.display = "inline"; musicaTom.pause(); musicaCore.play(); }
+        if (score >= 100 && !boss.activo) { 
+            boss.activo = true; 
+            document.getElementById("boss-ui").style.display = "inline"; 
+            musicaTom.pause(); 
+            musicaCore.play();
+            // Particles when boss appears
+            crearParticulasEvento(boss.x + boss.w/2, boss.y + boss.h/2, 80, "magenta");
+        }
         
         if (boss.activo) {
             boss.x += (p.x - boss.x) * 0.02; 
             boss.y += (p.y - boss.y) * 0.02;
             ctx.drawImage(imgRojo, Math.floor(boss.x), Math.floor(boss.y), boss.w, boss.h);
             if (Math.abs(p.x - boss.x) < 40 && Math.abs(p.y - boss.y) < 40 && invulnerable <= 0) {
-                puntosVida -= 15; invulnerable = 60; sonidoDano.play();
+                puntosVida -= 15; 
+                invulnerable = 60; 
+                reproducirDano(); // Play damage sound
                 document.getElementById("vida").innerText = puntosVida;
                 crearParticulas(p.x, p.y);
             }
         }
 
         spawnTimer++;
-        // OPTIMIZATION: Increased spawn timer from 30 to 50 (fewer enemies)
-        if (spawnTimer > 50) {
-            enemigos.push({ x: Math.random()*800, y: 0, vx: (Math.random()-0.5)*8, vy: 2 });
+        // Spawn red chickens every ~0.65 seconds (39 frames at 60fps)
+        // Only spawn 1 red chicken at a time
+        if (spawnTimer > 39) {
+            enemigos.push({ 
+                x: Math.random()*800, 
+                y: 0, 
+                vx: (Math.random()-0.5)*8, 
+                vy: 2 + Math.random() * 2
+            });
             spawnTimer = 0;
             if (!huevo.activo) { huevo.x = Math.random()*700; huevo.y = Math.random()*400; huevo.activo = true; }
         }
@@ -207,9 +289,12 @@ function bucleJuego() {
                 continue;
             }
             
+            // Draw pollo rojo.png (red chickens)
             ctx.drawImage(imgRojo, Math.floor(en.x), Math.floor(en.y), 40, 40);
             if (Math.abs(p.x - en.x) < 30 && Math.abs(p.y - en.y) < 30 && invulnerable <= 0) {
-                puntosVida--; invulnerable = 60; sonidoDano.play();
+                puntosVida--; 
+                invulnerable = 60; 
+                reproducirDano(); // Play damage sound
                 document.getElementById("vida").innerText = puntosVida;
                 crearParticulas(p.x, p.y);
             }
@@ -218,46 +303,83 @@ function bucleJuego() {
         if (huevo.activo) {
             ctx.drawImage(imgHuevo, Math.floor(huevo.x), Math.floor(huevo.y), 35, 35);
             if (Math.abs(p.x - huevo.x) < 40 && Math.abs(p.y - huevo.y) < 40) {
-                huevo.activo = false; flash = 1; score++; 
+                huevo.activo = false; 
+                flash = 1; 
+                score++; 
                 document.getElementById("puntos").innerText = score;
-                sonidoExp.play();
+                reproducirExp(); // Play explosion sound
                 // OPTIMIZATION: Reduced particle count from 15 to 8
                 for(let i = 0; i < enemigos.length; i++) {
                     crearParticulas(enemigos[i].x, enemigos[i].y, 5);
                 }
                 enemigos = [];
                 if (boss.activo) { 
-                    boss.hp--; document.getElementById("boss-hp").innerText = boss.hp;
-                    if (boss.hp <= 0) finalizar("¡VICTORIA! EL CORE HA SIDO DESTRUIDO");
+                    boss.hp--; 
+                    document.getElementById("boss-hp").innerText = boss.hp;
+                    if (boss.hp <= 0) {
+                        tiempoBossDerrota = 0;
+                        mostrarMensajeVictoria = false;
+                        crearParticulasEvento(boss.x + boss.w/2, boss.y + boss.h/2, 150, "gold");
+                        finalizar("¡VICTORIA! EL CORE HA SIDO DESTRUIDO");
+                    }
                 }
             }
         }
 
-        if (puntosVida <= 0) finalizar("¡GAME OVER! TE HAS QUEDADO SIN VIDA");
+        if (puntosVida <= 0) {
+            finalizar("¡GAME OVER! TE HAS QUEDADO SIN VIDA");
+        }
+    } else {
+        // Game over state - wait for particles to finish
+        tiempoMuerte++;
+        
+        // Draw player
+        if (!p.mirandoDerecha) { 
+            ctx.save();
+            ctx.translate(Math.floor(p.x) + p.w, Math.floor(p.y)); 
+            ctx.scale(-1, 1); 
+            ctx.drawImage(imgPollo, 0, 0, p.w, p.h); 
+            ctx.restore();
+        }
+        else { 
+            ctx.drawImage(imgPollo, Math.floor(p.x), Math.floor(p.y), p.w, p.h); 
+        }
+        
+        // Draw boss if active
+        if (boss.activo) {
+            ctx.drawImage(imgRojo, Math.floor(boss.x), Math.floor(boss.y), boss.w, boss.h);
+        }
+        
+        // Show message after particles finish (4 seconds = 240 frames)
+        if (tiempoMuerte >= 240) {
+            mostrarMensajeMuerte = true;
+        }
     }
 
     // Draw player with invulnerability flashing
-    if (invulnerable > 0) { 
-        invulnerable--; 
-        ctx.globalAlpha = 0.4; 
-    } else {
+    if (!juegoFinalizado) {
+        if (invulnerable > 0) { 
+            invulnerable--; 
+            ctx.globalAlpha = 0.4; 
+        } else {
+            ctx.globalAlpha = 1;
+        }
+        
+        if (!p.mirandoDerecha) { 
+            ctx.save();
+            ctx.translate(Math.floor(p.x) + p.w, Math.floor(p.y)); 
+            ctx.scale(-1, 1); 
+            ctx.drawImage(imgPollo, 0, 0, p.w, p.h); 
+            ctx.restore();
+        }
+        else { 
+            ctx.drawImage(imgPollo, Math.floor(p.x), Math.floor(p.y), p.w, p.h); 
+        }
+        
         ctx.globalAlpha = 1;
     }
-    
-    if (!p.mirandoDerecha) { 
-        ctx.save();
-        ctx.translate(Math.floor(p.x) + p.w, Math.floor(p.y)); 
-        ctx.scale(-1, 1); 
-        ctx.drawImage(imgPollo, 0, 0, p.w, p.h); 
-        ctx.restore();
-    }
-    else { 
-        ctx.drawImage(imgPollo, Math.floor(p.x), Math.floor(p.y), p.w, p.h); 
-    }
-    
-    ctx.globalAlpha = 1;
 
-    // Draw particles - OPTIMIZATION: Reduced from 15 to 8 particles per burst
+    // Draw regular particles
     for(let i = particulas.length - 1; i >= 0; i--) {
         const part = particulas[i];
         part.x += part.vx; 
@@ -270,11 +392,39 @@ function bucleJuego() {
         }
     }
 
+    // Draw event particles (4-second duration)
+    for(let i = particulasEventoExit.length - 1; i >= 0; i--) {
+        const part = particulasEventoExit[i];
+        part.x += part.vx; 
+        part.y += part.vy; 
+        part.vida--;
+        ctx.fillStyle = part.color;
+        ctx.globalAlpha = part.vida / 240; // Fade out
+        ctx.fillRect(Math.floor(part.x), Math.floor(part.y), 5, 5);
+        ctx.globalAlpha = 1;
+        if(part.vida <= 0) {
+            particulasEventoExit.splice(i, 1);
+            
+            // Show message when particles finish
+            if (juegoFinalizado && particulasEventoExit.length === 0 && !mostrarMensajeMuerte) {
+                mostrarMensajeMuerte = true;
+            }
+        }
+    }
+
     // Flash effect when collecting egg
     if (flash > 0) { 
         ctx.fillStyle = `rgba(255, 255, 255, ${flash})`; 
         ctx.fillRect(0, 0, 800, 600); 
         flash -= 0.05;
+    }
+
+    // Show final message
+    if (mostrarMensajeMuerte) {
+        alert(mensajeMuerte);
+        document.getElementById("game-container").style.display = "none";
+        document.getElementById("menu").style.display = "flex";
+        return;
     }
     
     requestAnimationFrame(bucleJuego);
